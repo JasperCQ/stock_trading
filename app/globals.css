@@ -130,6 +130,43 @@ button {
   padding: 16px 18px;
 }
 
+.watchlist-editor {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px 0;
+}
+
+.watchlist-form {
+  display: flex;
+  gap: 10px;
+}
+
+.watchlist-form input {
+  min-width: 0;
+  flex: 1;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  color: var(--ink);
+}
+
+.watchlist-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--muted);
+}
+
 .metric {
   padding: 12px;
   border: 1px solid var(--line);
@@ -223,6 +260,14 @@ button {
   cursor: wait;
 }
 
+.text-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .analysis-result {
   min-height: 220px;
   margin-top: 14px;
@@ -312,6 +357,11 @@ button {
 
   .market-grid {
     grid-template-columns: 1fr;
+  }
+
+  .watchlist-form {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .stock-table {

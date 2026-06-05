@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { StockQuote } from "@/lib/stocks";
 
+const WATCHLIST_STORAGE_KEY = "a-share-ai-watchlist";
+const initialWatchlist = ["000001", "600519", "300750", "002594", "601318", "000858"];
+
 type MarketPayload = {
   quotes: StockQuote[];
   summary: {
@@ -26,26 +29,91 @@ function signed(value: number) {
   return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
+function normalizeInputCode(input: string) {
+  const code = input.trim().replace(/\D/g, "");
+  return /^\d{6}$/.test(code) ? code : null;
+}
+
 export function StockDashboard() {
   const [market, setMarket] = useState<MarketPayload | null>(null);
+  const [watchlist, setWatchlist] = useState<string[]>(initialWatchlist);
+  const [newCode, setNewCode] = useState("");
+  const [watchlistError, setWatchlistError] = useState("");
   const [question, setQuestion] = useState("请基于当前自选股，指出今天值得重点跟踪的风险和机会。");
   const [analysis, setAnalysis] = useState("等待分析。");
   const [loading, setLoading] = useState(false);
 
-  async function loadMarket() {
-    const response = await fetch("/api/stocks");
+  async function loadMarket(symbols = watchlist) {
+    const params = new URLSearchParams({ symbols: symbols.join(",") });
+    const response = await fetch(`/api/stocks?${params.toString()}`);
     if (response.ok) {
       setMarket((await response.json()) as MarketPayload);
     }
   }
 
   useEffect(() => {
-    loadMarket();
+    const saved = window.localStorage.getItem(WATCHLIST_STORAGE_KEY);
+    if (!saved) {
+      loadMarket(initialWatchlist);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(saved) as string[];
+      const savedWatchlist = parsed.map(normalizeInputCode).filter((code): code is string => Boolean(code));
+      const nextWatchlist = savedWatchlist.length > 0 ? Array.from(new Set(savedWatchlist)) : initialWatchlist;
+      setWatchlist(nextWatchlist);
+      loadMarket(nextWatchlist);
+    } catch {
+      loadMarket(initialWatchlist);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(watchlist));
+  }, [watchlist]);
 
   const sortedQuotes = useMemo(() => {
     return [...(market?.quotes ?? [])].sort((a, b) => b.changePercent - a.changePercent);
   }, [market]);
+
+  function addStock() {
+    const code = normalizeInputCode(newCode);
+
+    if (!code) {
+      setWatchlistError("请输入 6 位 A 股代码");
+      return;
+    }
+
+    if (
+      !code.startsWith("0") &&
+      !code.startsWith("3") &&
+      !code.startsWith("4") &&
+      !code.startsWith("6") &&
+      !code.startsWith("8")
+    ) {
+      setWatchlistError("当前仅支持常见 A 股代码");
+      return;
+    }
+
+    if (watchlist.includes(code)) {
+      setWatchlistError("这只股票已经在自选股里");
+      return;
+    }
+
+    const nextWatchlist = [...watchlist, code];
+    setWatchlist(nextWatchlist);
+    setNewCode("");
+    setWatchlistError("");
+    loadMarket(nextWatchlist);
+  }
+
+  function removeStock(code: string) {
+    const nextWatchlist = watchlist.filter((item) => item !== code);
+    setWatchlist(nextWatchlist);
+    loadMarket(nextWatchlist);
+  }
 
   async function analyze() {
     setLoading(true);
@@ -80,7 +148,7 @@ export function StockDashboard() {
           </div>
         </div>
         <div className="top-actions">
-          <button className="button secondary" type="button" onClick={loadMarket}>
+          <button className="button secondary" type="button" onClick={() => loadMarket()}>
             刷新
           </button>
           <button className="button secondary" type="button" onClick={logout}>
@@ -98,6 +166,35 @@ export function StockDashboard() {
                 更新时间：{market ? new Date(market.updatedAt).toLocaleString("zh-CN") : "加载中"}
               </p>
             </div>
+          </div>
+
+          <div className="watchlist-editor">
+            <div className="watchlist-form">
+              <input
+                aria-label="股票代码"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="输入 6 位股票代码"
+                value={newCode}
+                onChange={(event) => setNewCode(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    addStock();
+                  }
+                }}
+              />
+              <button className="button" type="button" onClick={addStock}>
+                添加
+              </button>
+            </div>
+            <div className="watchlist-tags">
+              {watchlist.map((code) => (
+                <button className="tag" key={code} type="button" onClick={() => removeStock(code)}>
+                  {code} ×
+                </button>
+              ))}
+            </div>
+            {watchlistError ? <div className="error">{watchlistError}</div> : null}
           </div>
 
           <div className="market-grid">
@@ -129,6 +226,7 @@ export function StockDashboard() {
                 <th>涨跌幅</th>
                 <th>成交额</th>
                 <th>成交量</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -142,6 +240,11 @@ export function StockDashboard() {
                   <td className={quote.changePercent >= 0 ? "gain" : "loss"}>{signed(quote.changePercent)}</td>
                   <td>{money(quote.turnover)}</td>
                   <td>{quote.volume.toLocaleString("zh-CN")}</td>
+                  <td>
+                    <button className="text-button" type="button" onClick={() => removeStock(quote.code)}>
+                      删除
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

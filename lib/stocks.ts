@@ -7,7 +7,7 @@ export type StockQuote = {
   volume: number;
 };
 
-const watchlist = [
+export const defaultWatchlist = [
   "1.000001",
   "1.600519",
   "0.300750",
@@ -34,7 +34,38 @@ type EastMoneyQuote = {
   f6: number;
 };
 
-export async function fetchAshareQuotes(): Promise<StockQuote[]> {
+export function normalizeAshareSymbol(input: string) {
+  const code = input.trim().replace(/\D/g, "");
+
+  if (!/^\d{6}$/.test(code)) {
+    return null;
+  }
+
+  if (code.startsWith("6")) {
+    return `1.${code}`;
+  }
+
+  if (code.startsWith("0") || code.startsWith("3")) {
+    return `0.${code}`;
+  }
+
+  if (code.startsWith("8") || code.startsWith("4")) {
+    return `0.${code}`;
+  }
+
+  return null;
+}
+
+export function normalizeWatchlist(symbols: string[]) {
+  const normalized = symbols
+    .map(normalizeAshareSymbol)
+    .filter((symbol): symbol is string => Boolean(symbol));
+
+  return Array.from(new Set(normalized)).slice(0, 30);
+}
+
+export async function fetchAshareQuotes(symbols = defaultWatchlist): Promise<StockQuote[]> {
+  const watchlist = symbols.length > 0 ? symbols : defaultWatchlist;
   const fields = "f12,f14,f2,f3,f5,f6";
   const url = `https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&fields=${fields}&secids=${watchlist.join(",")}`;
 
